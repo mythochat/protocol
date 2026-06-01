@@ -6,9 +6,9 @@
   "generator": {
     "script": "scripts/generate-kat.mjs",
     "noble_versions": {
-      "@noble/post-quantum": "^0.2.0",
-      "@noble/hashes": "^1.5.0",
-      "@noble/ciphers": "^1.0.0"
+      "@noble/post-quantum": "0.2.1",
+      "@noble/hashes": "1.8.0",
+      "@noble/ciphers": "1.3.0"
     },
     "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     "generated_at": "2026-06-01T00:00:00Z"
@@ -19,6 +19,8 @@
       "inputs": {
         "root_key_hex": "79fc57a8924a468f6a2ad0f715e0e1e45269be5f153b73ed9c436ad442ecbdd2",
         "kem_shared_secret_hex": "c17faf10fc788fd42c3335127794c9c80f683883a576d9244992d59e59ed4d08",
+        "salt": "79fc57a8924a468f6a2ad0f715e0e1e45269be5f153b73ed9c436ad442ecbdd2",
+        "salt_note": "KEM step uses a natural salt = the current Root Key (RK_n), not the empty salt.",
         "info_ascii": "mytho/rk/v1",
         "length": 64
       },
@@ -26,12 +28,14 @@
         "rk_next_hex": "b2384ef040e624e457f87f5e6b29a451133ac12fa50901f0ec311a3c9a764c53",
         "ck_0_hex": "da07cd8333cb6a724fee1e112fdd07ba8bf7c1dc48ccfe7c7c2eadf90d09f7e0"
       },
-      "notes": "HKDF-Expand(salt=RK_n, ikm=kem_ss, info=\"mytho/rk/v1\", L=64); split into RK_next (32B) || CK_0 (32B)."
+      "notes": "HKDF (Extract+Expand, RFC 5869): PRK=HKDF-Extract(salt=RK_n, IKM=kem_ss); RK_next||CK_0=HKDF-Expand(PRK, info=\"mytho/rk/v1\", L=64); split 32||32."
     },
     {
       "label": "Chain key step: CK_0 -> CK_1 and MK_0",
       "inputs": {
         "chain_key_hex": "da07cd8333cb6a724fee1e112fdd07ba8bf7c1dc48ccfe7c7c2eadf90d09f7e0",
+        "salt": "",
+        "salt_note": "empty salt = 32 zero bytes per RFC 5869 §2.2",
         "info_ck_ascii": "mytho/ck/v1",
         "info_mk_ascii": "mytho/mk/v1",
         "length": 32
@@ -40,7 +44,7 @@
         "ck_1_hex": "bc9f9a4faddc7f304a4cefefdce1b47c9522d0b2eed6581a307aa4d2f86b5180",
         "mk_0_hex": "ea611a8f78b1bc1bbe23094e9663cee366769b8570f77349027d66e87178803e"
       },
-      "notes": "Two independent HKDF-Expand calls with distinct info labels (domain separation)."
+      "notes": "Two HKDF (Extract+Expand, RFC 5869, empty salt) calls sharing (salt=\"\", IKM=CK_0) with distinct info labels (domain separation)."
     }
   ]
 }

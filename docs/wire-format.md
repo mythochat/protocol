@@ -69,7 +69,7 @@ struct RoutingEnvelope {
     bytes16 message_id;
     u8      fragment_index;
     u8      total_fragments;
-    u16     padding_bin;           // declared bin (see §5); relay validates membership
+    u32     padding_bin;           // declared bin (see §5/§7); u32 because the max media bin 262144 exceeds u16; relay validates membership
     u32     ttl_seconds;           // relay clamps
     u16     delivery_token_len;
     bytes   delivery_token;        // HMAC sealed-sender token (see §4)
@@ -111,14 +111,28 @@ delivery_token = HMAC-SHA-256(
 )  // the tuple (nonce, exp) is carried alongside; sender_peer_id is NOT carried in cleartext
 ```
 
+**Byte-exact construction (pinned).**
+
+```
+nonce = 16 bytes (random)
+exp   = u64_be (8 bytes, Unix epoch seconds)
+data  = sender_peer_id(32) || recipient_peer_id(32) || nonce(16) || exp_be64(8)   // 88 bytes
+mac   = HMAC-SHA-256(key = server_pepper, data)                                   // 32 bytes, NO truncation
+```
+
 - The relay obtains `sender_peer_id` from the **authenticated session** bound to the WebSocket (`AUTH` msg, §6) — it is **never** read from the wire frame. This is what gives the sealed-sender property: the routing envelope reveals only the recipient.
 - The relay verifies the HMAC (using a `server_pepper` known only to the relay) and `exp`, and enforces **single use** via a `seen` set keyed by `nonce` (TTL = token lifetime).
 - The token authorizes "*some authenticated peer* may deliver to `recipient`," **without revealing which peer** to the routing layer.
 - Binds to `recipient_peer_id`: a token minted for B MUST be rejected for delivery to C.
 - Replay of the same `(nonce)` is rejected for the token lifetime.
 - **Token lifetime**: `exp - now()` MUST NOT exceed `DELIVERY_TOKEN_LIFETIME` (§2 = 300s). Tokens beyond that window MUST be rejected.
+- **`nonce` size**: exactly 16 random bytes (CSPRNG).
+- **`exp` encoding**: `u64_be` (8 bytes, Unix epoch seconds).
+- **HMAC input length**: exactly **88 bytes** (`32 + 32 + 16 + 8`), in this order.
 - **HMAC output**: 32 bytes (full SHA-256 output, no truncation).
 - **`server_pepper` size**: 32 bytes minimum, from a CSPRNG, never logged, rotated on operator policy.
+
+The KAT vector `vectors/delivery-token.json` pins this byte-for-byte (the 88-byte `data` layout and the 32-byte `mac`).
 
 This complements, and is independent from, the cryptographic sender authentication inside the payload (§5).
 
@@ -151,11 +165,24 @@ struct SealedPayload {
 }
 ```
 
+**Conditional length fields (always present; value is constrained).** Both `kem_ct_len` and `sender_sig_len` are **always serialized** in the stream — they are never omitted. Their *value* is what depends on the flags, and a receiver MUST reject any inconsistency with `MALFORMED`:
+
+- `u16 kem_ct_len` — ALWAYS present.
+  - `ratchet_flags.bit0 == 0` ⇒ `kem_ct_len` MUST be `0` (no `kem_ciphertext` bytes follow).
+  - `ratchet_flags.bit0 == 1` ⇒ `kem_ct_len` MUST be exactly `1088` (ML-KEM-768 ciphertext).
+  - Any other value, or a `kem_ciphertext` byte count that disagrees with `kem_ct_len`, ⇒ `MALFORMED`.
+- `u16 sender_sig_len` — ALWAYS present.
+  - `deniable == 1` ⇒ `sender_sig_len` MUST be `0` (no `sender_sig` bytes follow).
+  - `deniable == 0` ⇒ `sender_sig_len` MUST equal the ML-DSA-65 signature length, and `sender_sig` MUST carry exactly that many bytes.
+  - Any mismatch (e.g. `deniable == 1` with `sender_sig_len != 0`, or `deniable == 0` with a length that disagrees with the actual `sender_sig`) ⇒ `MALFORMED`.
+
 ### 5.1 AEAD nonce (deterministic, NOT on wire)
 
 ```
-aead_nonce = HKDF-Expand(MK, info = "mytho/nonce/v1", length = 24 bytes)
+aead_nonce = HKDF(salt="", IKM=MK, info="mytho/nonce/v1", L=24)
 ```
+
+HKDF is the full RFC 5869 construction (Extract-then-Expand); an empty salt is 32 zero bytes per RFC 5869 §2.2. The nonce is derived, never transmitted.
 
 The nonce is **derived** from the per-message key `MK`, not transmitted. Since `MK` is single-use (§ratchet 5), nonce-reuse with the same key is by construction impossible. Implementations MUST NOT random-sample the AEAD nonce.
 
@@ -228,7 +255,9 @@ Over the WebSocket channel, the same envelope is expressed as JSON with binary f
 }
 ```
 
-The relay validates: `v == 1`, `type` known, `recipientPeerId` is 32 bytes, `paddingBin ∈ {1024,4096,16384,65536}` (text) or `{16384,65536,262144}` (media), `ttlSeconds` within hard-limit, `deliveryToken` HMAC valid + unused, `sealedPayload` length within `MAX_FRAGMENT`. Any failure → `ERROR` (fail-closed), connection may be dropped after repeated violations.
+The relay validates: `v == 1`, `type` known, `recipientPeerId` is 32 bytes, `paddingBin` membership, `ttlSeconds` within hard-limit, `deliveryToken` HMAC valid + unused, `sealedPayload` length within the hard cap. Any failure → `ERROR` (fail-closed), connection may be dropped after repeated violations.
+
+**`paddingBin` validation (relay-side).** The relay validates `paddingBin ∈ {1024, 4096, 16384, 65536, 262144}` — the **union** of the text and media sets (§2). The relay does **not** distinguish text vs media: there is no content-type field anywhere in the routing envelope, so the relay cannot (and MUST NOT try to) infer it — choosing text vs media is the **client's** decision. The only hard size limit the relay enforces is `sealed_payload_len ≤ MAX_FRAGMENT_MEDIA` (262144, §2). The text/media split of `padding_bin_text` / `padding_bin_media` in §2 is **guidance for clients** picking a bin, not a relay-side discriminator.
 
 ---
 
@@ -269,7 +298,7 @@ No plaintext. No message archive. No sender↔recipient correlation persisted. S
 
 ## 10. Versioning
 
-`wire_version = 0x01` is a **draft**. Breaking changes before v1.0 are expected and will bump this byte. Implementations MUST reject versions they do not understand (`BAD_VERSION`, fatal). KAT vectors (roadmap) will be tagged to a specific `wire_version`.
+`wire_version = 0x01` is **stable** for the entire v1.x line: byte layouts in §3–§5 MUST NOT change within v1.x. A breaking change bumps the **major version and `wire_version` together** (e.g. v2.0 → `wire_version = 0x02`). Implementations MUST reject versions they do not understand (`BAD_VERSION`, fatal). KAT vectors live in `vectors/` (§11) and are tagged to a specific `wire_version`.
 
 ---
 
@@ -280,8 +309,15 @@ Normative KAT vectors live in `vectors/*.json`, each tagged to a specific `wire_
 - `peerid-derivation.json` — given `IK_pub_dilithium` (hex), the derived `peerId`.
 - `aad-encoding.json` — the 38-byte AAD for sample envelopes.
 - `padding-7816.json` — ISO/IEC 7816-4 padding cases (empty / exact-fit / partial-fit).
-- `aead-nonce-derivation.json` — `HKDF-Expand(MK, "mytho/nonce/v1", 24)` for sample `MK` values.
-- `delivery-token.json` — `HMAC-SHA-256(server_pepper, sender || recipient || nonce || exp_be64)` cases.
+- `aead-nonce-derivation.json` — `HKDF(salt="", IKM=MK, info="mytho/nonce/v1", L=24)` for sample `MK` values.
+- `delivery-token.json` — `HMAC-SHA-256(server_pepper, sender || recipient || nonce || exp_be64)` over the 88-byte `data`.
+- `hkdf-chain-step.json` — symmetric chain advance: `CK' = HKDF(…, info="mytho/ck/v1", L=32)` and `MK = HKDF(…, info="mytho/mk/v1", L=32)`.
+- `handshake-x3dh-pq.json` — the PQ-X3DH handshake producing the initial root key.
+- `aead-roundtrip.json` — XChaCha20-Poly1305 encrypt + decrypt with the derived nonce and AAD.
+- `ratchet-multistep.json` — `CK_0 → CK_1 → CK_2` with `MK_0 / MK_1 / MK_2` (3 chain steps).
+- `skipped-keys.json` — out-of-order delivery: derive and cache skipped `MK`s, decrypt late, bounded by `MAX_SKIP`.
+- `mldsa-sign-verify.json` — ML-DSA-65 `sign(sk, msg) → sig`; `verify(pk, msg, sig) → true` (deterministic seed).
+- `mlkem-decapsulate.json` — ML-KEM-768 `decapsulate(sk, ct) → ss` equals the encapsulated shared secret.
 
 See `docs/kat-vectors-format.md` for the JSON schema and `scripts/generate-kat.mjs` for the deterministic generator.
 

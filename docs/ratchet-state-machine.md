@@ -29,10 +29,13 @@ stateDiagram-v2
     [*] --> Uninitialized
     Uninitialized --> Handshaking: claim prekey bundle
     Handshaking --> Established: X3DH-style PQ handshake completes
+    Handshaking --> Failed: ML-DSA signature invalid / decapsulation failure
     Established --> Established: send / receive (ratchet advances)
     Established --> Stale: long inactivity (no key material expiry, app policy)
     Stale --> Established: KEM ratchet step on next message
+    Established --> Failed: ratchet error / replay / bit0 or bit1 policy rejection
     Established --> Closed: session discarded / TTL of all fragments elapsed
+    Failed --> Closed: state zeroized and discarded
     Closed --> [*]
 ```
 
@@ -40,6 +43,7 @@ stateDiagram-v2
 - **Handshaking** — the initial shared secret is being established (see §3).
 - **Established** — normal operation; every message advances at least the symmetric ratchet.
 - **Stale** — the application considers the session idle. No cryptographic expiry is imposed by the protocol; the next message simply performs a KEM ratchet step (the standard direction-change path).
+- **Failed** — terminal error state. Reachable from **Handshaking** on an ML-DSA signature-verification or ML-KEM decapsulation failure, and from **Established** on a ratchet error (e.g. a direction change missing the required PCS trigger — see §5), a detected replay, or a policy rejection of the `bit0`/`bit1` flags. The session is **fail-closed**: no further messages are accepted or emitted, and the session transitions to **Closed** so its key material is zeroized and discarded.
 - **Closed** — all session state is dropped. Because messages are ephemeral by default, a closed session leaves no plaintext archive.
 
 ---
@@ -60,7 +64,7 @@ sequenceDiagram
     Note over I: verify SPK signature with IK_sig (ML-DSA)
     I->>I: encapsulate against SPK  -> (ct_spk, ss_spk)
     I->>I: encapsulate against OTPK -> (ct_otpk, ss_otpk)
-    I->>I: SK = HKDF(ss_spk || ss_otpk, info="mytho/handshake/v1")
+    I->>I: SK = HKDF(salt="", IKM=(ss_spk || ss_otpk), info="mytho/handshake/v1", L=32)
     I->>I: initialize root key RK <- SK
     I->>Relay: relay( header{ct_spk, ct_otpk, IK_pub}, AEAD(msg, MK_0) )
     Relay-->>R: deliver (opaque)
@@ -70,6 +74,7 @@ sequenceDiagram
 
 Key points:
 
+- **`HKDF` here is full HKDF (RFC 5869): Extract-then-Expand.** `SK = HKDF-Expand(HKDF-Extract(salt="", IKM=ss_spk || ss_otpk), info="mytho/handshake/v1", L=32)`. With no natural salt at the handshake, `salt=""` is treated as 32 zero bytes per [RFC 5869 §2.2](https://www.rfc-editor.org/rfc/rfc5869#section-2.2).
 - **Two encapsulations** (signed prekey + one-time prekey) are combined so that compromise of the long-lived signed prekey alone does not expose past sessions that also used a one-time prekey. The dual-input KDF construction follows [NIST SP 800-56C Rev. 2 §5.6.2.3](https://csrc.nist.gov/pubs/sp/800/56/c/r2/final).
 - The **one-time prekey is consumed** at claim (the relay performs an atomic pop). If the pool is exhausted, the handshake proceeds with the signed prekey only (degraded forward secrecy for that first message) — and the initiator MUST set `ratchet_flags.bit1 = 0` (`handshake_otpk_used = false`) per `docs/wire-format.md` §5.4. The degradation is **explicit on wire**, not silent.
 - The relay **verifies nothing cryptographic about the payload** — it only routes. Signature verification happens on the responder.
@@ -82,28 +87,49 @@ Key points:
 
 ```mermaid
 flowchart TD
-    RK0["Root Key RK_n"] -->|KEM step: encapsulate/decapsulate fresh ML-KEM| KDF_RK["KDF_RK"]
-    KEMSS["fresh KEM shared secret"] --> KDF_RK
-    KDF_RK --> RK1["Root Key RK_n+1"]
-    KDF_RK --> CK0["Chain Key CK_0 (new sending/receiving chain)"]
+    RK0["Root Key RK_n"] -->|salt| EXTRACT["HKDF-Extract"]
+    KEMSS["fresh KEM shared secret"] -->|IKM| EXTRACT
+    EXTRACT --> PRK["PRK"]
+    PRK -->|"HKDF-Expand(info=mytho/rk/v1, L=64)"| RKEXP["RK' || CK_0 (split 32 || 32)"]
+    RKEXP --> RK1["Root Key RK_n+1"]
+    RKEXP --> CK0["Chain Key CK_0 (new sending/receiving chain)"]
 
-    CK0 -->|KDF_CK| CK1["Chain Key CK_1"]
-    CK0 -->|KDF_CK| MK0["Message Key MK_0"]
-    CK1 -->|KDF_CK| CK2["Chain Key CK_2"]
-    CK1 -->|KDF_CK| MK1["Message Key MK_1"]
-    CK2 -->|KDF_CK| MK2["Message Key MK_2"]
+    CK0 -->|"HKDF(salt=&quot;&quot;, info=mytho/ck/v1, L=32)"| CK1["Chain Key CK_1"]
+    CK0 -->|"HKDF(salt=&quot;&quot;, info=mytho/mk/v1, L=32)"| MK0["Message Key MK_0"]
+    CK1 -->|"HKDF(salt=&quot;&quot;, info=mytho/ck/v1, L=32)"| CK2["Chain Key CK_2"]
+    CK1 -->|"HKDF(salt=&quot;&quot;, info=mytho/mk/v1, L=32)"| MK1["Message Key MK_1"]
+    CK2 -->|"HKDF(salt=&quot;&quot;, info=mytho/mk/v1, L=32)"| MK2["Message Key MK_2"]
 
     MK0 --> AEAD0["XChaCha20-Poly1305 (message 0)"]
     MK1 --> AEAD1["XChaCha20-Poly1305 (message 1)"]
     MK2 --> AEAD2["XChaCha20-Poly1305 (message 2)"]
 ```
 
-- **KDF_RK** and **KDF_CK** are domain-separated HKDF-SHA-256 invocations (distinct `info` labels — `mytho/rk/v1`, `mytho/ck/v1`).
+All derivations are HKDF-SHA-256 ([RFC 5869](https://www.rfc-editor.org/rfc/rfc5869), Extract-then-Expand), domain-separated by distinct `info` labels.
+
+- **KEM ratchet step (root).** The current Root Key is the *salt*, the fresh ML-KEM shared secret is the *IKM*:
+
+  ```
+  PRK         = HKDF-Extract(salt=RK_n, IKM=kem_shared_secret)
+  RK' || CK_0 = HKDF-Expand(PRK, info="mytho/rk/v1", L=64)   // split 32 || 32
+  ```
+
+  The label `mytho/ck/v1` does **not** participate at the root step; `CK_0` is simply the second 32-byte half of the single `mytho/rk/v1`-labelled 64-byte output.
+
+- **Symmetric chain step.** Each chain advance derives the next chain key and the current message key from `CK_n` with no natural salt (`salt=""` ⇒ 32 zero bytes, RFC 5869 §2.2):
+
+  ```
+  CK_{n+1} = HKDF(salt="", IKM=CK_n, info="mytho/ck/v1", L=32)
+  MK_n     = HKDF(salt="", IKM=CK_n, info="mytho/mk/v1", L=32)
+  ```
+
+  These two calls share `(salt, IKM) = ("", CK_n)` and differ only in `info` — the correct domain-separation pattern. Distinct `info` labels are precisely how independent keys are produced from the same chain key (see the anti-reuse rule in [`docs/hkdf-labels.md`](./hkdf-labels.md)).
+
 - A **Message Key (MK)** is used exactly once, then discarded. AEAD = XChaCha20-Poly1305.
 - A **Chain Key (CK)** advances forward only; given CK_n you cannot recover CK_{n-1} (one-way KDF) → **forward secrecy** within a chain.
 - A **Root Key (RK)** advances on every direction change, absorbing fresh ML-KEM material → **post-compromise security** across chains.
 
-All HKDF `info` labels used by the ratchet (`mytho/rk/v1`, `mytho/ck/v1`, `mytho/handshake/v1`, `mytho/nonce/v1`) are listed in [`docs/hkdf-labels.md`](./hkdf-labels.md), which is the **canonical normative reference** for domain separation.
+The HKDF `info` labels used by the ratchet — `mytho/handshake/v1`, `mytho/rk/v1`, `mytho/ck/v1`, `mytho/mk/v1`, `mytho/nonce/v1` — are listed in [`docs/hkdf-labels.md`](./hkdf-labels.md), which is the **canonical normative reference** for domain separation.
 
 ---
 
@@ -122,6 +148,8 @@ stateDiagram-v2
 ```
 
 A **direction change** (you were receiving, now you send; or vice versa) triggers a **KEM ratchet step**: a fresh ML-KEM keypair/encapsulation produces new shared material, the Root Key advances, and a brand-new chain begins. This is what heals the session after a potential compromise (PCS).
+
+**PCS trigger (normative).** The first message of every new sending chain — the first message a party sends after a direction change — **MUST** set `ratchet_flags.bit0 = 1` and include a fresh `kem_ciphertext`. A receiver that observes a direction change (a message belonging to a new sending chain) **without** `bit0 = 1` **MUST** reject it with a ratchet error and transition to **Failed** (§2). Post-compromise security depends on this: without the trigger a buggy or malicious sender could keep a session pinned to one chain forever, and PCS would never occur.
 
 ---
 
@@ -167,7 +195,7 @@ All properties hold under the assumptions stated in [`README.md`](../README.md) 
 - **Wire byte layout** of headers and fragments → see `docs/wire-format.md`.
 - **Group / multi-party** ratcheting (the above is the pairwise session). Group semantics are layered above pairwise sessions and are out of scope for v1.0.
 - **Implementation hardening** (constant-time, zeroization, RNG sourcing) → see [`SECURITY.md`](../SECURITY.md).
-- **Known-Answer Test vectors** → planned (roadmap item).
+- **Known-Answer Test vectors** → see `vectors/` (including `vectors/hkdf-chain-step.json`, `vectors/ratchet-multistep.json`, and `vectors/skipped-keys.json` for the derivations described here).
 
 ---
 

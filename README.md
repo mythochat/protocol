@@ -52,6 +52,9 @@ The protocol is designed as a **reusable transport layer** for E2E-encrypted mes
 | Future compromise of a long-term key | Forward secrecy + post-compromise security via ratchet |
 | Abuse / spam / enumeration | Proof-of-Work on registration + per-IP rate limiting + fail-closed auth |
 | Account ↔ chat-identity correlation by the relay | Identity binding held in a separate trust domain (issuer), never exposed to the relay (see §8) |
+| Malicious / compromised issuer | Can forge session tokens and authorize delivery, but holds **no** message keys — E2E confidentiality and integrity survive. Account-level trust is delegated to the issuer **by design** (see §9). |
+| Relay availability (DoS) | Connection/`RELAY` flooding and ephemeral-queue exhaustion are mitigated by per-IP rate limiting, recipient quotas, and registration Proof-of-Work; full availability under a resourced DoS adversary is a **partial non-goal**. |
+| Downgrade / replay | Rejected — `wire_version` mismatch is fatal (`BAD_VERSION`), `delivery_token.nonce` is single-use, and message keys are erased after use. |
 
 **Out of scope (non-goals):** compromise of an endpoint **device** (if the endpoint is hostile, E2E cannot help); network-level traffic analysis (packet **timing** and **volume** patterns — partial size mitigation only, see §7); recovery of already-expired ephemeral messages; correlation by an adversary who simultaneously compromises both the relay **and** the identity issuer.
 
@@ -82,7 +85,7 @@ The relay exposes minimal operations: authenticate session, register peer, **rel
 | AEAD (symmetric encryption) | **XChaCha20-Poly1305** (draft-irtf-cfrg-xchacha-03) |
 | Key derivation | **HKDF-SHA-256** (RFC 5869) with domain separation (see `docs/hkdf-labels.md`) |
 | Forward secrecy / PCS | **Double Ratchet** (Perrin & Marlinspike, 2016) composed over the PQ primitives above |
-| Session token | **ES256** (ECDSA P-256, RFC 7515/7518) — verified, never issued by the relay |
+| Session token | **ES256** (ECDSA P-256, RFC 7518; JWS RFC 7515) — verified, never issued by the relay |
 
 **Construction note.** mytho.chat is **PQ-only** at the asymmetric layer: the key-exchange leg uses ML-KEM-768 *exclusively*, with no classical Diffie-Hellman component. This is a deliberate departure from PQXDH (Kret & Lyubashevsky, 2024) and X-Wing (Wood et al., 2024), which combine ML-KEM with X25519 for transitional defense-in-depth. The rationale is documented in §11a (Conformance & Construction Rationale): the project's primary threat is "harvest-now, decrypt-later" by a future quantum adversary; a hybrid leg adds operational complexity, larger handshake messages, and a second cryptanalytic surface to maintain, while providing protection only in the scenario where ML-KEM-768 is found to be broken classically *before* the adversary has captured the traffic — a scenario the project does not optimize for. Implementations targeting regulated-financial deployments (where defense-in-depth is required by policy) MAY swap in an X-Wing-style hybrid construction; such a deployment is **non-conformant** with this v1.0 spec and SHOULD be documented as a fork.
 
@@ -109,6 +112,7 @@ The relay **takes part in none** of the steps above — it only transports the r
 
 - **Peer IDs** are public, opaque identifiers for a participant on the relay. A peerId is derived from a public signature key and need not reveal the underlying account or user.
 - **Persona ↔ account unlinkability** — the binding between a public chat identity (peerId) and the issuer's account identifier is held in a **separate trust domain** (the identity issuer, §9) and is **never available to the relay**. The relay sees only the public peerId and the encrypted payload. A fully compromised relay operator cannot link peerIds to underlying accounts without independently compromising the issuer's protected data.
+- **Sealed-sender scope** — the relay does learn the peerId of the **authenticated session** that connects (via the `AUTH`/ES256 token); what sealed-sender removes is the `sender_peer_id` from the **routing envelope and from persistence**, not from the active session. The anti-correlation guarantee is therefore operational: per §11a the relay **MUST NOT** persist any `sender_peer_id` ↔ `recipient_peer_id` mapping after a fragment is acked or expires, so no durable record links the sending session to the recipient.
 - **Multiple personas** — a single user may hold several independent peerIds (distinct key pairs). To the relay these are unrelated participants; correlation between them is not possible at the relay layer.
 - **Anti-abuse** — identity registration requires **Proof-of-Work** (a computational cost per creation) and **per-IP rate limiting**, mitigating spam and enumeration. Where a deployment must satisfy regulatory identification (e.g. financial use cases), account-level identity is enforced by the **issuer**, not the relay — preserving the relay's content- and correlation-blindness.
 
@@ -169,7 +173,7 @@ MUST / MUST NOT / SHOULD / MAY follow [RFC 2119](https://www.rfc-editor.org/rfc/
 ### Construction rationale
 
 - **PQ-only KEM (§5).** No classical leg. Rationale documented above (§5 construction note).
-- **Deterministic AEAD nonce (`docs/wire-format.md` §5).** Derived by `HKDF-Expand` from the per-message key (`MK`) — eliminates the nonce-reuse class of bugs without consuming wire bandwidth.
+- **Deterministic AEAD nonce (`docs/wire-format.md` §5).** Derived by HKDF (RFC 5869, Extract-then-Expand, empty salt) from the per-message key (`MK`) — eliminates the nonce-reuse class of bugs without consuming wire bandwidth.
 - **Sealed-sender (`docs/wire-format.md` §4).** Sender identity is NEVER on the routing envelope; the relay knows "some authenticated peer is delivering to R" via the HMAC token, but cannot link it to a specific `sender_peer_id` from the wire alone.
 - **Single-use delivery tokens.** Bind to (sender, recipient, nonce, exp); single-use enforced by SETNX-style `seen` set in the relay's ephemeral store.
 - **Deniable mode (§10).** `deniable=1` omits the ML-DSA signature; authenticity rests on the AEAD shared key, known only to the two endpoints. **Neither the relay nor any external party can forge a deniable message** — but the recipient cannot prove to a third party that the sender wrote it.

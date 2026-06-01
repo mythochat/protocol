@@ -1,0 +1,36 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "mlkem-decapsulate",
+  "spec_ref": "docs/ratchet-state-machine.md §3",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "0.2.1",
+      "@noble/hashes": "1.8.0",
+      "@noble/ciphers": "1.3.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "ML-KEM-768 encapsulate then decapsulate — shared secrets equal",
+      "inputs": {
+        "keygen_seed_hex": "f390a66015f5b3c86ebb74e493342c89534aa67ad03fa58f52748c00dd435dd4ff43e8c151e1736a4e07c18687d254f98a06edc6ea66bd69d3f495a32476ce8e",
+        "public_key_length": 1184,
+        "secret_key_length": 2400,
+        "encapsulate_message_hex": "f8957ed4972829ae1b646577b0f09aaf9d16218a53104043894b415d06575603",
+        "cipher_text_length": 1088
+      },
+      "outputs": {
+        "ss_encaps_hex": "9bd3635c2e772f6f278ee58a77c7e53c60f7db0f5818f7b7844dd5b8511a20d5",
+        "ss_encaps_length": 32,
+        "ss_decaps_hex": "9bd3635c2e772f6f278ee58a77c7e53c60f7db0f5818f7b7844dd5b8511a20d5",
+        "ss_decaps_length": 32,
+        "shared_secret_match": true
+      },
+      "notes": "ml_kem768.keygen(seed64); {cipherText, sharedSecret}=encapsulate(pk, m32); ss2=decapsulate(cipherText, sk). Correctness: ss_encaps_hex == ss_decaps_hex (32-byte ML-KEM-768 shared secret, ct=1088 bytes)."
+    }
+  ]
+}
