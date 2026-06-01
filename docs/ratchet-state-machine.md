@@ -1,6 +1,6 @@
 # Post-Quantum Double Ratchet — State Machine
 
-> Part of the mytho.chat protocol specification (Draft v0.2). Companion to [`README.md`](../README.md) §6 (handshake) and §11 (security properties). This document describes the **session ratchet** used for long-lived conversations: how keys advance, when they are derived, and which security properties each transition provides.
+> Part of the mytho.chat protocol specification (v1.0). Companion to [`README.md`](../README.md) §6 (handshake) and §11 (security properties). This document describes the **session ratchet** used for long-lived conversations: how keys advance, when they are derived, and which security properties each transition provides.
 >
 > **Scope:** protocol-level state machine and key-derivation graph. This is **not** an implementation; constant-time concerns, memory zeroization, and side-channel hardening are implementation responsibilities (see [`SECURITY.md`](../SECURITY.md)).
 
@@ -165,10 +165,10 @@ All properties hold under the assumptions stated in [`README.md`](../README.md) 
 ## 8. What this document does not cover
 
 - **Wire byte layout** of headers and fragments → see `docs/wire-format.md`.
-- **Group / multi-party** ratcheting (the above is the pairwise session). Group semantics are layered above pairwise sessions and are out of scope for v0.1.
+- **Group / multi-party** ratcheting (the above is the pairwise session). Group semantics are layered above pairwise sessions and are out of scope for v1.0.
 - **Implementation hardening** (constant-time, zeroization, RNG sourcing) → see [`SECURITY.md`](../SECURITY.md).
 - **Known-Answer Test vectors** → planned (roadmap item).
 
 ---
 
-*Draft v0.2 — subject to change before a stable v1.0 marking. Feedback via `security@mytho.chat` or repository issues.*
+*v1.0 — stable within the v1.x line. Feedback via `security@mytho.chat` or repository issues.*

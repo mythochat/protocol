@@ -1,8 +1,8 @@
 # mytho.chat — protocol
 
-> **Status: Draft, version 0.2 (Q2 2026).** Active development; breaking changes may occur before v1.0.
+> **Status: v1.0 (Q2 2026).** This is the public specification of a deployed, operating service. The protocol numbering follows semantic versioning at the spec level: backward-compatible additions bump the minor (`v1.1`, `v1.2`); breaking changes bump the major (`v2.0`) and the `wire_version` byte together. An independent cryptographic audit is planned and not yet published — until it is, the security properties in §11 are claimed design targets, not certified guarantees.
 >
-> **Implementation status (reference deployment):** the binary wire-format described in `docs/wire-format.md` §3–§7 (including `delivery_token`, `padding_bin` enforcement, `wire_version` validation, sealed-sender envelope) is **planned for v1.0**. The current reference deployment uses a **simplified JSON envelope** that does not yet implement these controls. Where the spec uses MUST/MUST NOT for the binary wire-format, conformance is required from v1.0 implementations; the v0.x reference deployment is explicitly non-conformant on that surface. This README documents the spec; auditors should treat unimplemented features as design targets pending implementation.
+> **Conformance.** The binary wire-format described in `docs/wire-format.md` §3–§7 (including `delivery_token`, `padding_bin` enforcement, `wire_version` validation, sealed-sender envelope) is the conformance target for v1.0 implementations. Where the spec uses MUST/MUST NOT, those are requirements a conforming v1.0 implementation must meet. A v1.0 implementation that does not satisfy them is non-conformant on that surface and SHOULD be documented as a deviation.
 >
 > **Academic specification / reference material.** This repository describes the **protocol** behind mytho.chat's post-quantum, end-to-end (E2E) messaging. It is conceptual documentation — **not** the production implementation, which is maintained privately to protect operational security and intellectual property. Nothing here contains secrets, keys, or infrastructure details. The specification is sufficient for academic review of the protocol design; a minimal reference implementation of the cryptographic core is anticipated for independent verification.
 
@@ -84,7 +84,7 @@ The relay exposes minimal operations: authenticate session, register peer, **rel
 | Forward secrecy / PCS | **Double Ratchet** (Perrin & Marlinspike, 2016) composed over the PQ primitives above |
 | Session token | **ES256** (ECDSA P-256, RFC 7515/7518) — verified, never issued by the relay |
 
-**Construction note.** mytho.chat is **PQ-only** at the asymmetric layer: the key-exchange leg uses ML-KEM-768 *exclusively*, with no classical Diffie-Hellman component. This is a deliberate departure from PQXDH (Kret & Lyubashevsky, 2024) and X-Wing (Wood et al., 2024), which combine ML-KEM with X25519 for transitional defense-in-depth. The rationale is documented in §11a (Conformance & Construction Rationale): the project's primary threat is "harvest-now, decrypt-later" by a future quantum adversary; a hybrid leg adds operational complexity, larger handshake messages, and a second cryptanalytic surface to maintain, while providing protection only in the scenario where ML-KEM-768 is found to be broken classically *before* the adversary has captured the traffic — a scenario the project does not optimize for. Implementations targeting regulated-financial deployments (where defense-in-depth is required by policy) MAY swap in an X-Wing-style hybrid construction; such a deployment is **non-conformant** with this v0.2 spec and SHOULD be documented as a fork.
+**Construction note.** mytho.chat is **PQ-only** at the asymmetric layer: the key-exchange leg uses ML-KEM-768 *exclusively*, with no classical Diffie-Hellman component. This is a deliberate departure from PQXDH (Kret & Lyubashevsky, 2024) and X-Wing (Wood et al., 2024), which combine ML-KEM with X25519 for transitional defense-in-depth. The rationale is documented in §11a (Conformance & Construction Rationale): the project's primary threat is "harvest-now, decrypt-later" by a future quantum adversary; a hybrid leg adds operational complexity, larger handshake messages, and a second cryptanalytic surface to maintain, while providing protection only in the scenario where ML-KEM-768 is found to be broken classically *before* the adversary has captured the traffic — a scenario the project does not optimize for. Implementations targeting regulated-financial deployments (where defense-in-depth is required by policy) MAY swap in an X-Wing-style hybrid construction; such a deployment is **non-conformant** with this v1.0 spec and SHOULD be documented as a fork.
 
 Reference libraries: the [`@noble`](https://paulmillr.com/noble/) family (audited). Normative references: NIST **FIPS 203/204**, **NIST SP 800-56C Rev. 2** (dual-input KDF), **RFC 5869** (HKDF), **`draft-irtf-cfrg-xchacha-03`** (XChaCha20-Poly1305), the **Double Ratchet** algorithm ([Perrin & Marlinspike, 2016](https://signal.org/docs/specifications/doubleratchet/)).
 
@@ -182,12 +182,14 @@ The specification here is sufficient for academic review of the protocol **desig
 
 ## 13. Roadmap (for this repository)
 
-This is a draft (v0.2). Planned additions, in priority order:
+v1.0 ships the specification, the post-quantum double-ratchet state machine, the canonical HKDF-label table, and seven KAT vector files. Items already shipped and planned for v1.x:
 
 - [x] Detailed fragment wire-format specification — [`docs/wire-format.md`](./docs/wire-format.md).
 - [x] Post-quantum double-ratchet state machine (with diagrams) — [`docs/ratchet-state-machine.md`](./docs/ratchet-state-machine.md).
+- [x] Canonical HKDF info-label table — [`docs/hkdf-labels.md`](./docs/hkdf-labels.md).
 - [x] Known-Answer Test (KAT) vectors — `vectors/*.json` (generator at `scripts/generate-kat.mjs`).
-- [ ] Minimal reference client implementation (academic purposes).
+- [ ] Minimal reference client implementation (independent verification of the cryptographic core).
+- [ ] Independent third-party cryptographic audit (results to be published at `mytho.chat/transparency`).
 
 These items are aspirational and carry no committed delivery date. This section will be updated as material is published; absence of an item indicates it has not yet been written, not that it is hidden.
 

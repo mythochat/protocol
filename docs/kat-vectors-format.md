@@ -1,6 +1,6 @@
 # KAT Vectors — JSON Schema
 
-> Part of the mytho.chat protocol specification (Draft v0.2). Defines the JSON schema for normative Known-Answer Test vectors in `vectors/*.json`. Vectors are deterministic, regeneratable from the source script (`scripts/generate-kat.mjs`), and pin byte-exact encodings.
+> Part of the mytho.chat protocol specification (v1.0). Defines the JSON schema for normative Known-Answer Test vectors in `vectors/*.json`. Vectors are deterministic, regeneratable from the source script (`scripts/generate-kat.mjs`), and pin byte-exact encodings.
 
 ---
 
@@ -67,4 +67,4 @@ The script is **deterministic** given the pinned `seed`. Output diffs between ru
 
 ---
 
-*Draft v0.2*
+*v1.0*

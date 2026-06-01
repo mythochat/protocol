@@ -4,7 +4,13 @@ All notable changes to the mytho.chat protocol specification.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The spec uses an internal `wire_version` byte tracked separately from this CHANGELOG (current: `0x01`).
 
-## [0.2.0] — 2026-06-01
+## [1.0.0] — 2026-06-01
+
+First stable specification release. The protocol is in production. The
+`wire_version` byte is fixed at `0x01` for the entire v1.x line; breaking
+changes will bump both the spec major version and `wire_version` together.
+
+
 
 ### Added
 - Conformance & Construction Rationale section in `README.md` §11a with explicit MUST/MUST NOT/SHOULD/MAY clauses for the relay and the client.
@@ -19,7 +25,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The spe
 ### Changed
 - `README.md` §5 (Cryptographic suite): pinned NIST Security Category 3 for ML-KEM-768 and ML-DSA-65; pinned `draft-irtf-cfrg-xchacha-03` for XChaCha20-Poly1305; added NIST SP 800-56C Rev. 2 as dual-input KDF normative reference; added PQXDH and X-Wing comparison; **clarified construction is PQ-only** (no classical leg) with rationale.
 - `wire-format.md` §2 (Identifiers and constants): pinned `MAX_SKIP=2000`, `TTL_HARD_LIMIT=604800s (7d)`, `DELIVERY_TOKEN_LIFETIME=300s`, `MAX_MESSAGE_TEXT=16MiB`, `MAX_MESSAGE_MEDIA=64MiB`. Pinned `peerId` representation as raw 1952-byte ML-DSA-65 public key per FIPS 204 §7.
-- `wire-format.md` §3: `chat_type ∈ {1, 2}` (group/room) marked RESERVED for v1.0; v0.2 receivers MUST reject with `MALFORMED`. Receivers MUST reject envelopes where `reserved != 0x00`.
+- `wire-format.md` §3: `chat_type ∈ {1, 2}` (group/room) marked RESERVED for a future revision; v1.0 receivers MUST reject with `MALFORMED`. Receivers MUST reject envelopes where `reserved != 0x00`.
 - `wire-format.md` §4 (delivery_token): pinned `sender_peer_id` source as the authenticated WebSocket session (`AUTH` msg); pinned token lifetime ≤ 300s; HMAC output 32 bytes (no truncation); `server_pepper` ≥ 32 bytes from CSPRNG.
 - `wire-format.md` §5 (SealedPayload): split into §5.1 (deterministic AEAD nonce via `HKDF-Expand(MK, "mytho/nonce/v1", 24)` — NOT on wire); §5.2 (byte-exact 38-byte AAD encoding); §5.3 (ISO/IEC 7816-4 plaintext padding); §5.4 (OTPK exhaustion explicit via `ratchet_flags.bit1`).
 - `ratchet-state-machine.md` §3: cited NIST SP 800-56C for dual-input KDF; cited PQXDH for structural comparison (PQ-only departure from); cross-referenced wire-format §5.4 for OTPK signaling.

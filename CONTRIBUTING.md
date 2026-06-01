@@ -34,7 +34,7 @@ This repository is a **specification**, not the production codebase. Contributio
 
 ## Versioning of the spec
 
-The protocol is **Draft v0.1**. Breaking changes are expected before a stable **v1.0** marking. The `wire_version` byte and document headers track this. Don't assume stability until v1.0 is declared.
+The protocol is **v1.0** as of 2026-06-01. The `wire_version` byte (currently `0x01`) and document headers track future revisions: backward-compatible additions bump the minor version; breaking changes bump the major version (`v2.0`) and the `wire_version` byte together. KAT vector files are tagged to a specific `wire_version`.
 
 ## Licensing of contributions
 

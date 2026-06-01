@@ -1,6 +1,6 @@
 # Fragment Wire Format
 
-> Part of the mytho.chat protocol specification (Draft v0.1). Companion to [`README.md`](../README.md) §4 (architecture) and §7 (message model). This document specifies the **byte layout** of what travels between client and relay, and what the relay is permitted to read.
+> Part of the mytho.chat protocol specification (v1.0). Companion to [`README.md`](../README.md) §4 (architecture) and §7 (message model). This document specifies the **byte layout** of what travels between client and relay, and what the relay is permitted to read.
 >
 > **Design rule:** the relay parses **only** the routing envelope. Everything inside the sealed payload is opaque to it. If a field is not in the routing envelope, the relay never sees it in cleartext.
 
@@ -63,8 +63,8 @@ All multi-byte integers are **big-endian, unsigned**. All variable-length fields
 struct RoutingEnvelope {
     u8      wire_version;          // 0x01
     u8      msg_type;              // see §6
-    u8      chat_type;             // 0=private; 1=group, 2=room are RESERVED for v1.0 — v0.1/v0.2 receivers MUST reject with MALFORMED
-    u8      reserved;              // 0x00, MUST be zero in v0.1
+    u8      chat_type;             // 0=private; 1=group, 2=room are RESERVED for a future revision — v1.0 receivers MUST reject with MALFORMED
+    u8      reserved;              // 0x00, MUST be zero in v1.0
     bytes32 recipient_peer_id;     // routing target
     bytes16 message_id;
     u8      fragment_index;
@@ -94,7 +94,7 @@ What the relay **MUST** also do:
 
 - Reject envelopes where `reserved != 0x00` with `MALFORMED` (forward-compatibility safeguard).
 
-**Group/room reserved (v0.1/v0.2).** `chat_type ∈ {1, 2}` is structurally allocated but **not specified** in this version — multi-party ratcheting is out of scope for v0.1 (see `docs/ratchet-state-machine.md` §8). Receivers MUST reject envelopes with `chat_type != 0` with `MALFORMED`. Group semantics will be specified in v1.0.
+**Group/room reserved (v1.0).** `chat_type ∈ {1, 2}` is structurally allocated but **not specified** in v1.0 — multi-party ratcheting is out of scope for v1.0 (see `docs/ratchet-state-machine.md` §8). Receivers MUST reject envelopes with `chat_type != 0` with `MALFORMED`. Group semantics will be specified in a future revision.
 
 Note the **absence** of a `sender_peer_id` field. Sender identity lives **inside** the sealed payload (§5), not in the envelope. This is the sealed-sender property.
 
@@ -134,7 +134,7 @@ struct SealedPayload {
     // --- ratchet header (authenticated, needed to derive the message key) ---
     u8       ratchet_flags;            // bit0: contains_new_kem_pub (direction change)
                                        // bit1: handshake_otpk_used (1=OTPK bound; 0=signed-prekey only, PFS-degraded)
-                                       // bits2-7: reserved, MUST be zero in v0.1
+                                       // bits2-7: reserved, MUST be zero in v1.0
     u16      kem_ct_len;
     bytes    kem_ciphertext;           // ML-KEM-768 encapsulation (1088 bytes), present iff bit0 set
     u32      prev_chain_len;           // PN: messages in previous sending chain
@@ -287,4 +287,4 @@ See `docs/kat-vectors-format.md` for the JSON schema and `scripts/generate-kat.m
 
 ---
 
-*Draft v0.2 — byte layouts may change before stable v1.0. Report ambiguities via `security@mytho.chat` or repository issues. This document intentionally omits any deployment secret, key, or infrastructure detail.*
+*v1.0 — `wire_version = 0x01` is stable; byte layouts MUST NOT change within the v1.x line. Report ambiguities via `security@mytho.chat` or repository issues. This document intentionally omits any deployment secret, key, or infrastructure detail.*

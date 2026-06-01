@@ -1,6 +1,6 @@
 # HKDF Domain-Separation Labels
 
-> Part of the mytho.chat protocol specification (Draft v0.2). Canonical normative reference for **all** HKDF `info` labels used in the protocol. Implementations MUST use these byte-exact ASCII strings; mismatch breaks interoperability silently.
+> Part of the mytho.chat protocol specification (v1.0). Canonical normative reference for **all** HKDF `info` labels used in the protocol. Implementations MUST use these byte-exact ASCII strings; mismatch breaks interoperability silently.
 
 ---
 
@@ -22,7 +22,7 @@ All labels are **ASCII**, no trailing newline, no padding. The encoding is the l
 | Message key derivation | `mytho/mk/v1` | 11 | 32 (MK_n) | `docs/ratchet-state-machine.md` §4 |
 | AEAD nonce derivation | `mytho/nonce/v1` | 14 | 24 (XChaCha20 nonce) | `docs/wire-format.md` §5.1 |
 | Delivery-token HMAC key | `mytho/delivery-token/v1` | 23 | 32 (HMAC-SHA-256 key) | `docs/wire-format.md` §4 |
-| Sealed-sender peer hint | `mytho/sealed-sender/v1` | 22 | 16 (peer-hint envelope marker) | reserved for v1.0 |
+| Sealed-sender peer hint | `mytho/sealed-sender/v1` | 22 | 16 (peer-hint envelope marker) | reserved for a future revision |
 
 ## 3. Implementation example (pseudocode)
 
@@ -47,4 +47,4 @@ Any HKDF call within the protocol that does NOT appear in §2 is **non-conforman
 
 ---
 
-*Draft v0.2 — labels are stable for v0.x and v1.x compatibility; new labels added under `/v1` are forward-compatible.*
+*v1.0 — labels are stable within the v1.x line; new labels added under `/v1` are forward-compatible.*

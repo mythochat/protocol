@@ -1,6 +1,6 @@
 # Security Policy
 
-mytho.chat is, in this repository, a **protocol specification** (Draft v0.1). This policy covers both the specification here and the reference deployment at `mytho.chat`.
+mytho.chat is, in this repository, a **protocol specification** (v1.0). This policy covers both the specification here and the reference deployment at `mytho.chat`.
 
 ## Reporting a vulnerability
 
