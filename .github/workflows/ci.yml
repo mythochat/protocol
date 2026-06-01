@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  spec-quality:
+    name: Spec quality + leak gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Leak gate — block internal references in public repo
+        run: |
+          set -e
+          PATTERN='AUD-MC|COMP-MC|SPEC-MC|QA-MC|gomo-hub|futurai|trendcash|havenzion|jurisfy|mythochat-server|@gomo-hub|SERVER_PEPPER|CRYPTO_MASTER|MPC_HMAC|user_peer_map|signing_audit_log|/Users/|appendonly no|requirepass|FLUSHALL|netsar|walkthrough\.md|HANDOFF-'
+          MATCHES=$(grep -rEnI "$PATTERN" \
+            --include='*.md' --include='*.txt' --include='*.json' \
+            --include='*.mjs' --include='*.js' --include='*.ts' \
+            --include='*.yml' --include='*.yaml' \
+            . 2>/dev/null | grep -v 'draft-irtf' | grep -v '/Users/Public' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::Leak gate triggered — internal-project references found in public repo:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "OK: zero internal references found."
+
+      - name: Markdown link sanity (relative links exist)
+        run: |
+          set -e
+          BAD=0
+          for f in $(find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'); do
+            DIR=$(dirname "$f")
+            for link in $(grep -oE '\]\([a-zA-Z0-9./_-]+\.md\b' "$f" | sed 's/](//'); do
+              if [ -f "$DIR/$link" ] || [ -f "$link" ]; then continue; fi
+              echo "::warning::$f references missing $link"
+              BAD=$((BAD+1))
+            done
+          done
+          if [ "$BAD" -gt 0 ]; then
+            echo "::error::$BAD broken relative-markdown link(s)"
+            exit 1
+          fi
+          echo "OK: relative markdown links resolve."
+
+  kat-verify:
+    name: KAT vectors — regenerate + schema verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: scripts/pnpm-lock.yaml
+
+      - name: Install tooling deps
+        working-directory: scripts
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Regenerate KAT vectors deterministically
+        working-directory: scripts
+        run: node generate-kat.mjs
+
+      - name: Diff regenerated vectors against committed
+        run: |
+          set -e
+          if ! git diff --quiet vectors/; then
+            echo "::error::Regenerated KAT vectors differ from committed."
+            echo "Either (a) a primitive library update changed outputs (intentional — commit the diff and bump @noble pins), or (b) non-determinism regression."
+            git --no-pager diff vectors/
+            exit 1
+          fi
+          echo "OK: regenerated vectors byte-identical to committed."
+
+      - name: Validate schema of every KAT file
+        working-directory: scripts
+        run: node verify-kat.mjs
