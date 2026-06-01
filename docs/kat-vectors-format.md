@@ -6,15 +6,20 @@
 
 ## 1. File naming
 
-Each KAT JSON file is named after the operation it pins:
+Each KAT JSON file is named after the operation it pins (12 vectors):
 
-- `vectors/peerid-derivation.json`
-- `vectors/aad-encoding.json`
-- `vectors/padding-7816.json`
-- `vectors/aead-nonce-derivation.json`
-- `vectors/delivery-token.json`
-- `vectors/hkdf-chain-step.json`
-- `vectors/handshake-x3dh-pq.json`
+- `vectors/peerid-derivation.json` — `peerId = SHA-256(IK_pub_dilithium)`
+- `vectors/aad-encoding.json` — 38-byte AEAD associated data encoding
+- `vectors/padding-7816.json` — ISO/IEC 7816-4 plaintext padding
+- `vectors/aead-nonce-derivation.json` — deterministic AEAD nonce via HKDF
+- `vectors/delivery-token.json` — relay delivery-token HMAC-SHA-256
+- `vectors/hkdf-chain-step.json` — KEM ratchet (RK + kem_ss → RK′ ‖ CK₀) and chain step
+- `vectors/handshake-x3dh-pq.json` — PQ-only X3DH-PQ handshake → SK
+- `vectors/aead-roundtrip.json` — XChaCha20-Poly1305 encrypt + decrypt with derived nonce and AAD
+- `vectors/ratchet-multistep.json` — symmetric chain CK₀→CK₁→CK₂ with MK₀/MK₁/MK₂
+- `vectors/skipped-keys.json` — out-of-order delivery: derive + cache skipped MKs, bounded by `MAX_SKIP`
+- `vectors/mldsa-sign-verify.json` — ML-DSA-65 deterministic sign + verify (and tampered-message rejection)
+- `vectors/mlkem-decapsulate.json` — ML-KEM-768 encapsulate/decapsulate shared-secret equality
 
 ## 2. Common schema
 

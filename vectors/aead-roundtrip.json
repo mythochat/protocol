@@ -1,0 +1,62 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "aead-roundtrip",
+  "spec_ref": "docs/wire-format.md §5.1",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "0.2.1",
+      "@noble/hashes": "1.8.0",
+      "@noble/ciphers": "1.3.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "AEAD roundtrip: MK from pinned seed, empty plaintext padded to bin=1024",
+      "inputs": {
+        "mk_hex": "31f976d4e6e97463a8e110bcfafe8e4719a2793f8ade77788c5a217f161c8288",
+        "nonce_hex": "9bdc1da6c64052a4d520311ce50d694d4c462336ce3b2117",
+        "nonce_derivation": "HKDF (Extract+Expand, RFC 5869, empty salt) over IKM=MK, info=\"mytho/nonce/v1\", L=24",
+        "aad_hex": "010000000000cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "aad_length": 38,
+        "plaintext_hex": "",
+        "plaintext_length": 0,
+        "padding_bin": 1024,
+        "padded_plaintext_length": 1024
+      },
+      "outputs": {
+        "ciphertext_hex_first_32": "ce6feffd797204d81cd1476c0d73633ab5744312b2e5a5cd0cb227c37c849089",
+        "ciphertext_hex_last_32": "d39e6aa4bd6ba908e7823aed4f52c4ceef5b164e3eaa2a3d1519f08042140202",
+        "ciphertext_length": 1040,
+        "poly1305_tag_length": 16,
+        "decrypt_roundtrip_ok": true
+      },
+      "notes": "ct = XChaCha20-Poly1305(key=MK, nonce, aad).encrypt(pad7816(plaintext, bin)); ciphertext_length = padded_plaintext_length + 16 (Poly1305 tag). Decrypt recovers the padded plaintext exactly."
+    },
+    {
+      "label": "AEAD roundtrip: MK from pinned seed, 13-byte plaintext padded to bin=1024",
+      "inputs": {
+        "mk_hex": "58a80117cde6d0323cae53a4a7a5a0884fea5b84fc33c43a4a595d405fb47c6e",
+        "nonce_hex": "136a4a51d210b53ba2d4ac09cd224180757477d888c0d6b0",
+        "nonce_derivation": "HKDF (Extract+Expand, RFC 5869, empty salt) over IKM=MK, info=\"mytho/nonce/v1\", L=24",
+        "aad_hex": "010200000007dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "aad_length": 38,
+        "plaintext_hex": "68656c6c6f206d7974686f2121",
+        "plaintext_length": 13,
+        "padding_bin": 1024,
+        "padded_plaintext_length": 1024
+      },
+      "outputs": {
+        "ciphertext_hex_first_32": "2fc369e88e40b9efec4f60aecf534e957a5fd254589b38c80b1ed69cd1b4660a",
+        "ciphertext_hex_last_32": "9ade29331b72dbccfe92cd7841bfbe50147fba331f655851a9b746c56416a0fa",
+        "ciphertext_length": 1040,
+        "poly1305_tag_length": 16,
+        "decrypt_roundtrip_ok": true
+      },
+      "notes": "ct = XChaCha20-Poly1305(key=MK, nonce, aad).encrypt(pad7816(plaintext, bin)); ciphertext_length = padded_plaintext_length + 16 (Poly1305 tag). Decrypt recovers the padded plaintext exactly."
+    }
+  ]
+}

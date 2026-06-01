@@ -1,0 +1,89 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "skipped-keys",
+  "spec_ref": "docs/ratchet-state-machine.md §5",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "0.2.1",
+      "@noble/hashes": "1.8.0",
+      "@noble/ciphers": "1.3.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "Out-of-order: receive N=3 before N=1,N=2 — derive+cache MK_1,MK_2; use MK_3",
+      "inputs": {
+        "ck_0_hex": "2d52d890ac23a95113d65b69521bb584fb508355ac05cc25752b1cbfad5573b0",
+        "salt": "",
+        "salt_note": "empty salt = 32 zero bytes per RFC 5869 §2.2",
+        "info_ck_ascii": "mytho/ck/v1",
+        "info_mk_ascii": "mytho/mk/v1",
+        "last_consumed_message_number": 0,
+        "received_message_number": 3,
+        "max_skip": 2000
+      },
+      "outputs": {
+        "chain_message_keys": [
+          {
+            "n": 0,
+            "mk_hex": "423f452098b136837f46426320ce90cef866135a994fd52e01d3547b3739485e"
+          },
+          {
+            "n": 1,
+            "mk_hex": "a4f0d11249951852394316f7003270c25410d37886b46317e369fea2122dd350"
+          },
+          {
+            "n": 2,
+            "mk_hex": "2c26c621e1c910a8496ae26e88c89e042af9f257182719f36e27e672bd825a00"
+          },
+          {
+            "n": 3,
+            "mk_hex": "70081aed2c27dde1067247c836b7bbdbb261bcab37b5c13e91f1613a930d5e75"
+          },
+          {
+            "n": 4,
+            "mk_hex": "587fb0fa450c66eae683968a1d4db0a0949c354b20d224d30e1d43dcca8e1b02"
+          }
+        ],
+        "derived_in_order": [
+          {
+            "n": 1,
+            "mk_hex": "a4f0d11249951852394316f7003270c25410d37886b46317e369fea2122dd350",
+            "role": "skipped -> cached"
+          },
+          {
+            "n": 2,
+            "mk_hex": "2c26c621e1c910a8496ae26e88c89e042af9f257182719f36e27e672bd825a00",
+            "role": "skipped -> cached"
+          },
+          {
+            "n": 3,
+            "mk_hex": "70081aed2c27dde1067247c836b7bbdbb261bcab37b5c13e91f1613a930d5e75",
+            "role": "used (decrypts the received frame)"
+          }
+        ],
+        "skipped_keys_cached": [
+          {
+            "n": 1,
+            "mk_hex": "a4f0d11249951852394316f7003270c25410d37886b46317e369fea2122dd350",
+            "role": "skipped -> cached"
+          },
+          {
+            "n": 2,
+            "mk_hex": "2c26c621e1c910a8496ae26e88c89e042af9f257182719f36e27e672bd825a00",
+            "role": "skipped -> cached"
+          }
+        ],
+        "skipped_count": 2,
+        "cache_size_after": 2,
+        "cache_within_bound": true,
+        "max_skip": 2000
+      },
+      "notes": "CK_0=sha256(\"skipped-ck0\"||seed); MK_n=HKDF(salt=\"\", IKM=CK_n, info=\"mytho/mk/v1\", L=32); CK_{n+1}=HKDF(salt=\"\", IKM=CK_n, info=\"mytho/ck/v1\", L=32). Receiving frame N=3 with N=0 last consumed derives MK_1,MK_2 (cached) then MK_3 (used). Skip distance 2 ≤ MAX_SKIP=2000; a skip distance > MAX_SKIP MUST be rejected."
+    }
+  ]
+}
