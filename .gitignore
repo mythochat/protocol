@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Node tooling (used only by scripts/)
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Local agent / audit state (never publish)
+.agent/
+.tmp-agent/
+walkthrough.md
+HANDOFF-*.md
+
+# Editor
+.vscode/
+.idea/
+*.swp

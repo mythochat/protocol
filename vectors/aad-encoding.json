@@ -1,0 +1,57 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "aad-encoding",
+  "spec_ref": "docs/wire-format.md §5.2",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "^0.2.0",
+      "@noble/hashes": "^1.5.0",
+      "@noble/ciphers": "^1.0.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "AAD case 1: zero values",
+      "inputs": {
+        "payload_version": 1,
+        "ratchet_flags": 0,
+        "message_number": 0,
+        "recipient_peer_id_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "outputs": {
+        "aad_hex": "0100000000000000000000000000000000000000000000000000000000000000000000000000",
+        "aad_length": 38
+      }
+    },
+    {
+      "label": "AAD case 2: typical mid-chain message",
+      "inputs": {
+        "payload_version": 1,
+        "ratchet_flags": 2,
+        "message_number": 42,
+        "recipient_peer_id_hex": "abababababababababababababababababababababababababababababababab"
+      },
+      "outputs": {
+        "aad_hex": "01020000002aabababababababababababababababababababababababababababababababab",
+        "aad_length": 38
+      }
+    },
+    {
+      "label": "AAD case 3: max message_number (u32 max)",
+      "inputs": {
+        "payload_version": 1,
+        "ratchet_flags": 3,
+        "message_number": 4294967295,
+        "recipient_peer_id_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "outputs": {
+        "aad_hex": "0103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "aad_length": 38
+      }
+    }
+  ]
+}

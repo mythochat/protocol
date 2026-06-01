@@ -1,0 +1,37 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "handshake-x3dh-pq",
+  "spec_ref": "docs/ratchet-state-machine.md §3",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "^0.2.0",
+      "@noble/hashes": "^1.5.0",
+      "@noble/ciphers": "^1.0.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "X3DH-PQ handshake (PQ-only, no classical leg) — single test case",
+      "inputs": {
+        "spk_pub_length": 1184,
+        "otpk_pub_length": 1184,
+        "ct_spk_length": 1088,
+        "ct_otpk_length": 1088,
+        "ss_spk_length": 32,
+        "ss_otpk_length": 32,
+        "ikm_hex": "631d7fb52834cd49bb88eb04f4814a3fb6f8d2fe30326c1645dddb09114d02d446cf2d4c5c9725751fdc68a7334f5749dbf65a451d4912cf6a2b91c35a5bfbee",
+        "info_ascii": "mytho/handshake/v1",
+        "length": 32
+      },
+      "outputs": {
+        "sk_hex": "1d694300336f3c7b79defbc572cdcb0edb7000cce177d1c6467c3b9b4f64a263",
+        "sk_length": 32
+      },
+      "notes": "PQ-only X3DH variant: SK = HKDF-Expand(salt=empty, ikm=ss_spk||ss_otpk, info=\"mytho/handshake/v1\", L=32). No classical X25519 leg; see README.md §5 construction note."
+    }
+  ]
+}

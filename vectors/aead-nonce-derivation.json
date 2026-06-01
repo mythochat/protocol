@@ -1,0 +1,57 @@
+{
+  "schema": "mytho.chat/kat/v1",
+  "wire_version": 1,
+  "primitive": "aead-nonce-derivation",
+  "spec_ref": "docs/wire-format.md §5.1",
+  "generator": {
+    "script": "scripts/generate-kat.mjs",
+    "noble_versions": {
+      "@noble/post-quantum": "^0.2.0",
+      "@noble/hashes": "^1.5.0",
+      "@noble/ciphers": "^1.0.0"
+    },
+    "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "generated_at": "2026-06-01T00:00:00Z"
+  },
+  "cases": [
+    {
+      "label": "MK = all zeros",
+      "inputs": {
+        "mk_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "info_ascii": "mytho/nonce/v1",
+        "length": 24
+      },
+      "outputs": {
+        "nonce_hex": "b36d24d6818932913a45072261b46aa24c88192923713d7e",
+        "nonce_length": 24
+      },
+      "notes": "HKDF-Expand(salt=empty, ikm=MK, info=\"mytho/nonce/v1\", L=24) — RFC 5869."
+    },
+    {
+      "label": "MK = all 0xAA",
+      "inputs": {
+        "mk_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "info_ascii": "mytho/nonce/v1",
+        "length": 24
+      },
+      "outputs": {
+        "nonce_hex": "85941e83e615c0a3ef7b8c66fe5008cc52519d8e82dc857c",
+        "nonce_length": 24
+      },
+      "notes": "HKDF-Expand(salt=empty, ikm=MK, info=\"mytho/nonce/v1\", L=24) — RFC 5869."
+    },
+    {
+      "label": "MK = derived from pinned seed",
+      "inputs": {
+        "mk_hex": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+        "info_ascii": "mytho/nonce/v1",
+        "length": 24
+      },
+      "outputs": {
+        "nonce_hex": "8490786f42ac60dc1aae48cdd0980015720fa5c16b6457a9",
+        "nonce_length": 24
+      },
+      "notes": "HKDF-Expand(salt=empty, ikm=MK, info=\"mytho/nonce/v1\", L=24) — RFC 5869."
+    }
+  ]
+}
